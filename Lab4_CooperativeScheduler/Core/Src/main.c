@@ -36,7 +36,9 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEMO_MODE_A 1
-#define DEMO_MODE DEMO_MODE_A
+#define DEMO_MODE_B 2
+
+#define DEMO_MODE DEMO_MODE_B
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,10 +61,24 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 #if DEMO_MODE == DEMO_MODE_A
+
 static void DemoA_LogTick(void)
 {
     Tasks_LogTimestamp("A");
 }
+
+#elif DEMO_MODE == DEMO_MODE_B
+
+static void DemoB_Log300(void)
+{
+    Tasks_LogTimestamp("B300");
+}
+
+static void DemoB_Log500(void)
+{
+    Tasks_LogTimestamp("B500");
+}
+
 #else
 #error "Unsupported DEMO_MODE"
 #endif
@@ -103,13 +119,33 @@ int main(void)
     SCH_Init();
 
   #if DEMO_MODE == DEMO_MODE_A
-    uint32_t demo_task_id = SCH_Add_Task(DemoA_LogTick, 1U, 1U);
-  #endif
 
-    if (demo_task_id == NO_TASK_ID)
+    if (SCH_Add_Task(DemoA_LogTick, 1U, 1U) == NO_TASK_ID)
     {
         Error_Handler();
     }
+
+  #elif DEMO_MODE == DEMO_MODE_B
+
+    uint32_t task_300_id = SCH_Add_Task(DemoB_Log300,
+                                       MS_TO_TICK(300U),
+                                       MS_TO_TICK(300U));
+
+    if (task_300_id == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    uint32_t task_500_id = SCH_Add_Task(DemoB_Log500,
+                                       MS_TO_TICK(500U),
+                                       MS_TO_TICK(500U));
+
+    if (task_500_id == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+  #endif
 
     __HAL_TIM_SET_COUNTER(&htim2, 0U);
     __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);

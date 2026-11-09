@@ -448,3 +448,66 @@ Em chọn **không đưa phép đo Logic Analyser vào kết quả T7**. Chu k�
 
 **Tiếp theo — T8:** Chạy đồng thời hai task có period **300 ms** và **500 ms**, rồi kiểm tra thứ tự callback tại mốc trùng đầu tiên **1500 ms**.
 
+**T8 chạy đúng.** Ảnh Virtual Terminal cho thấy hai task tiếp tục chạy theo chu kỳ riêng. Tại mốc trùng **1500 ms**, dòng `B300` xuất hiện trước `B500`, đúng thứ tự đăng ký. Bạn có thể dán phần dưới đây vào `prompt.md`.
+
+# CẬP NHẬT TRẠNG THÁI - T8
+
+## 1. Mục tiêu
+
+Ở T7, em chạy Demo A với một callback định kỳ 10 ms. Sang T8, em chạy **Demo B** để kiểm tra scheduler có thể quản lý đồng thời hai task định kỳ với chu kỳ khác nhau. Theo §5, trang 23 của đề Lab, một timeout chạy mỗi **500 ms** và một timeout khác chạy song song. Em chọn **300 ms** cho timeout thứ hai để kiểm tra cả những lần hai task đến hạn riêng và lần chúng đến hạn cùng lúc.
+
+## 2. Thay đổi trong firmware
+
+Trong `Core/Src/main.c`, em thêm `DEMO_MODE_B` và đặt `DEMO_MODE` thành `DEMO_MODE_B`. Em giữ nhánh Demo A để có thể chọn lại khi cần. Demo B có hai callback là `DemoB_Log300()` và `DemoB_Log500()`. Hai callback dùng lại `Tasks_LogTimestamp()` từ T6 với nhãn lần lượt là `B300` và `B500`, để có thể phân biệt từng task trên Virtual Terminal.
+
+Sau khi gọi `SCH_Init()` và trước khi khởi động TIM2, em đăng ký `B300` trước, rồi đăng ký `B500`. Mỗi task có delay ban đầu bằng period, nên lần đầu thực thi diễn ra sau một chu kỳ kể từ lúc timer bắt đầu đếm.
+
+| Task | TaskID | Delay ban đầu | Period |
+|---|---:|---:|---:|
+| `B300` | 1 | 300 ms, tương ứng 30 tick | 300 ms, tương ứng 30 tick |
+| `B500` | 2 | 500 ms, tương ứng 50 tick | 500 ms, tương ứng 50 tick |
+
+Trong khi chạy, ngắt TIM2 cập nhật tick bằng `SCH_Update()`. Vòng lặp chính gọi `SCH_Dispatch_Tasks()` để thực thi các callback đến hạn. Hai task cùng được đăng ký và tiến triển theo lịch riêng, còn các callback thực thi **tuần tự**. Khi hai deadline bằng nhau, scheduler chọn task có `TaskID` nhỏ hơn trước.
+
+## 3. Lịch kỳ vọng và mốc trùng
+
+Mốc trùng đầu tiên là **1500 ms**, vì đây là bội chung nhỏ nhất của 300 và 500. Tại mốc này, `B300` đến hạn lần thứ 5 và `B500` đến hạn lần thứ 3. `B300` có ID 1 nên được gọi trước `B500` có ID 2.
+
+| Task | Các deadline kỳ vọng đến hết mốc 1500 ms | Số lượt kỳ vọng |
+|---|---|---:|
+| `B300` | 300, 600, 900, 1200, 1500 ms | 5 |
+| `B500` | 500, 1000, 1500 ms | 3 |
+
+## 4. Kết quả chạy trong Proteus
+
+Em chạy firmware Demo B và quan sát log trên Virtual Terminal qua USART1 ở **115200 baud, 8N1**. Đoạn log nhìn thấy trong ảnh chạy thử là:
+
+```text
+[t=600 ms] B300
+[t=900 ms] B300
+[t=1000 ms] B500
+[t=1200 ms] B300
+[t=1500 ms] B300
+[t=1500 ms] B500
+[t=1800 ms] B300
+[t=2000 ms] B500
+[t=2100 ms] B300
+```
+
+Trong đoạn ảnh, các lần chạy liên tiếp của `B300` cách nhau **300 ms**, còn các lần chạy liên tiếp của `B500` cách nhau **500 ms**. Tại **1500 ms**, terminal hiển thị `B300` trước `B500`, đúng thứ tự theo `TaskID`. Sau mốc trùng, cả hai task vẫn tiếp tục theo lịch riêng, thể hiện qua các dòng `B300` ở 1800 và 2100 ms, cùng dòng `B500` ở 2000 ms.
+
+Ảnh bắt đầu từ **600 ms**, nên các lượt đầu ở **300 ms** và **500 ms** nằm ngoài phần log nhìn thấy. Số lượt **5 và 3** tính từ lúc khởi động là giá trị kỳ vọng theo lịch. Ảnh xác nhận đầy đủ thứ tự và nhịp thực thi trong đoạn **600–2100 ms**. Năm LED tắt trong ảnh là phù hợp với Demo B vì hai callback chỉ ghi log.
+
+## 5. Giải thích hai timestamp bằng nhau
+
+`SCH_Get_Time()` đọc tick hiện tại khi callback chạy. Tại mốc trùng, hai callback thực thi lần lượt nhưng đều lấy mẫu trong cùng tick 150, nên cùng in **1500 ms**. Thứ tự hai dòng trên terminal cho biết callback nào chạy trước.
+
+Mỗi dòng tại mốc 1500 ms dài **18 byte** tính cả `\r\n`. Với UART 8N1, hai dòng cần khoảng \(36 \times 10 / 115200 \approx 3{,}13\) ms trên đường truyền, chưa tính thời gian định dạng và xử lý HAL. Demo B chỉ bật hai task 300 ms và 500 ms để dễ quan sát thứ tự tại mốc trùng.
+
+## TRẠNG THÁI DỰ ÁN
+
+**T8 — Đã chạy và xác nhận Demo B trên Proteus.** Hai task duy trì chu kỳ 300 ms và 500 ms trong đoạn log quan sát được. Tại deadline chung 1500 ms, `B300` chạy trước `B500`, đúng quy tắc ưu tiên ID nhỏ hơn.
+
+**Tiếp theo — T9:** Chạy Demo C với các task one-shot, kiểm tra mỗi callback in timestamp đúng một lần sau delay đã đăng ký.
+
+
