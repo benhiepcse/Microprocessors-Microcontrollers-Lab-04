@@ -37,8 +37,10 @@
 /* USER CODE BEGIN PD */
 #define DEMO_MODE_A 1
 #define DEMO_MODE_B 2
+#define DEMO_MODE_C 3
+#define DEMO_MODE_5_LED 4
 
-#define DEMO_MODE DEMO_MODE_B
+#define DEMO_MODE DEMO_MODE_5_LED
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -77,6 +79,49 @@ static void DemoB_Log300(void)
 static void DemoB_Log500(void)
 {
     Tasks_LogTimestamp("B500");
+}
+
+#elif DEMO_MODE == DEMO_MODE_C
+
+static void DemoC_Log1000(void)
+{
+    Tasks_LogTimestamp("C1");
+}
+
+static void DemoC_Log2000(void)
+{
+    Tasks_LogTimestamp("C2");
+}
+
+static void DemoC_Log3000(void)
+{
+    Tasks_LogTimestamp("C3");
+}
+
+#elif DEMO_MODE == DEMO_MODE_5_LED
+
+static void Led_Yellow(void)
+{
+    HAL_GPIO_TogglePin(YELLOW_GPIO_Port, YELLOW_Pin);
+    Tasks_LogTimestamp("T2");
+}
+
+static void Led_Pink(void)
+{
+    HAL_GPIO_TogglePin(PINK_GPIO_Port, PINK_Pin);
+    Tasks_LogTimestamp("T3");
+}
+
+static void Led_Green(void)
+{
+    HAL_GPIO_TogglePin(GREEN_GPIO_Port, GREEN_Pin);
+    Tasks_LogTimestamp("T4");
+}
+
+static void Led_Blue(void)
+{
+    HAL_GPIO_TogglePin(BLUE_GPIO_Port, BLUE_Pin);
+    Tasks_LogTimestamp("T5");
 }
 
 #else
@@ -127,20 +172,63 @@ int main(void)
 
   #elif DEMO_MODE == DEMO_MODE_B
 
-    uint32_t task_300_id = SCH_Add_Task(DemoB_Log300,
-                                       MS_TO_TICK(300U),
-                                       MS_TO_TICK(300U));
-
-    if (task_300_id == NO_TASK_ID)
+    if (SCH_Add_Task(DemoB_Log300, MS_TO_TICK(300U),
+                     MS_TO_TICK(300U)) == NO_TASK_ID)
     {
         Error_Handler();
     }
 
-    uint32_t task_500_id = SCH_Add_Task(DemoB_Log500,
-                                       MS_TO_TICK(500U),
-                                       MS_TO_TICK(500U));
+    if (SCH_Add_Task(DemoB_Log500, MS_TO_TICK(500U),
+                     MS_TO_TICK(500U)) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
 
-    if (task_500_id == NO_TASK_ID)
+  #elif DEMO_MODE == DEMO_MODE_C
+
+    if (SCH_Add_Task(DemoC_Log1000, 100U, 0U) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    if (SCH_Add_Task(DemoC_Log2000, 200U, 0U) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    if (SCH_Add_Task(DemoC_Log3000, 300U, 0U) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+  #elif DEMO_MODE == DEMO_MODE_5_LED
+
+    if (SCH_Add_Task(Tasks_RedLed, MS_TO_TICK(500U),
+                     MS_TO_TICK(500U)) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    if (SCH_Add_Task(Led_Yellow, MS_TO_TICK(1000U),
+                     MS_TO_TICK(1000U)) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    if (SCH_Add_Task(Led_Pink, MS_TO_TICK(1500U),
+                     MS_TO_TICK(1500U)) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    if (SCH_Add_Task(Led_Green, MS_TO_TICK(2000U),
+                     MS_TO_TICK(2000U)) == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
+
+    if (SCH_Add_Task(Led_Blue, MS_TO_TICK(2500U),
+                     MS_TO_TICK(2500U)) == NO_TASK_ID)
     {
         Error_Handler();
     }
@@ -156,7 +244,6 @@ int main(void)
         Error_Handler();
     }
   /* USER CODE END 2 */
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)

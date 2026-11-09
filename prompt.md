@@ -510,4 +510,100 @@ Mỗi dòng tại mốc 1500 ms dài **18 byte** tính cả `\r\n`. Với UART 8
 
 **Tiếp theo — T9:** Chạy Demo C với các task one-shot, kiểm tra mỗi callback in timestamp đúng một lần sau delay đã đăng ký.
 
+**T9 đạt.** Virtual Terminal có đúng ba dòng `C1 → C2 → C3` tại **1000, 2000 và 3000 ms**. Thanh trạng thái Proteus cho thấy mô phỏng đã chạy đến khoảng **9,145 giây** mà vẫn chỉ có ba dòng. Bạn có thể dán báo cáo dưới đây vào `prompt.md`.
+
+# CẬP NHẬT TRẠNG THÁI - T9
+
+## 1. Mục tiêu
+
+Ở T8, em đã kiểm tra hai task định kỳ 300 ms và 500 ms. Sang T9, em chạy **Demo C** để kiểm tra task *one-shot*. Mỗi task được đăng ký trước vòng lặp chính, chờ đến deadline rồi chạy callback đúng một lần. Theo §5, trang 23 của đề Lab, các callback trong phần demo này chỉ in timestamp khi hết thời gian chờ.
+
+## 2. Cách triển khai
+
+Trong `Core/Src/main.c`, em thêm `DEMO_MODE_C` và đặt `DEMO_MODE` thành `DEMO_MODE_C`. Sau khi gọi `SCH_Init()`, em dùng `SCH_Add_Task()` để đăng ký ba callback trước khi khởi động TIM2 và trước khi vào vòng `while (1)`. Mỗi callback gọi `Tasks_LogTimestamp()` với một nhãn riêng để nhận diện trên Virtual Terminal.
+
+| Callback | Nhãn log | Delay ban đầu | Period |
+|---|---|---:|---:|
+| `DemoC_Log1000()` | `C1` | 100 tick, tương ứng 1000 ms | 0 |
+| `DemoC_Log2000()` | `C2` | 200 tick, tương ứng 2000 ms | 0 |
+| `DemoC_Log3000()` | `C3` | 300 tick, tương ứng 3000 ms | 0 |
+
+Sau khi start TIM2, chương trình đi vào vòng lặp gọi `SCH_Dispatch_Tasks()`. Deadline đầu tiên cách thời điểm start timer **100 tick**, nên luồng khởi tạo có thời gian vào vòng dispatch trước khi `C1` đến hạn. Khi một callback trả về, scheduler thấy `PERIOD = 0` và giải phóng slot. Do đó, task đã thực thi không được đưa lại vào danh sách chờ.
+
+## 3. Kết quả kiểm thử trên Proteus
+
+Em chạy Demo C và quan sát Virtual Terminal ở **115200 baud, 8N1**. Ảnh chụp ghi lại đúng ba dòng sau:
+
+```text
+[t=1000 ms] C1
+[t=2000 ms] C2
+[t=3000 ms] C3
+```
+
+Ba callback xuất hiện đúng thứ tự và timestamp của từng dòng khớp deadline đã đăng ký. Em tiếp tục chạy mô phỏng đến khoảng **9,145 giây**. Tại thời điểm chụp ảnh, Virtual Terminal vẫn chỉ có ba dòng trên, tức **không thấy callback nào lặp trong khoảng quan sát sau mốc 3000 ms**.
+
+Năm LED tắt là phù hợp vì callback Demo C chỉ ghi log. Cửa sổ Logic Analyser không có trace dùng cho phép thử này vì firmware chỉ đảo PA6 ở Demo A. Bằng chứng T9 là **log UART kết hợp với thời gian mô phỏng hiển thị trên thanh trạng thái Proteus**.
+
+## TRẠNG THÁI DỰ ÁN
+
+**T9 hoàn thành.** Đã kiểm chứng ba task one-shot chạy lần lượt ở **1000, 2000 và 3000 ms** theo timestamp của scheduler. Mỗi nhãn xuất hiện một lần trong lần chạy được quan sát đến **9,145 giây**.
+
+**Tiếp theo — T10:** Chạy chế độ năm LED định kỳ với các khoảng đảo trạng thái **500, 1000, 1500, 2000 và 2500 ms**.
+
+**T10 chạy đúng trong các đoạn log bạn gửi.** Bằng chứng rõ nhất là `T5` xuất hiện ở **12500 → 15000 → 17500 ms**, mỗi lần cách nhau **2500 ms**. LED xanh dương lần lượt **sáng → tắt → sáng** trong các ảnh tương ứng. Bạn có thể dán phần dưới đây vào `prompt.md`.
+
+# CẬP NHẬT TRẠNG THÁI - T10
+
+## 1. Mục tiêu và cách triển khai
+
+Ở T10, em chạy chế độ chính của Lab 4 với **năm task định kỳ**, theo yêu cầu tại §4, trang 22. Mỗi task điều khiển một LED riêng. Khi đến hạn, callback đảo trạng thái chân GPIO rồi ghi timestamp qua USART1 để đối chiếu thời điểm thực thi trên Virtual Terminal.
+
+Trong `Core/Src/main.c`, em đặt `DEMO_MODE` thành `DEMO_MODE_5_LED`. Callback LED đỏ dùng lại `Tasks_RedLed()` từ T6. Bốn callback còn lại điều khiển LED vàng, hồng, xanh lá và xanh dương. Sau khi gọi `SCH_Init()`, em đăng ký năm task theo thứ tự `T1` đến `T5` rồi mới khởi động TIM2. Ngắt TIM2 cập nhật tick, còn `SCH_Dispatch_Tasks()` trong vòng lặp chính gọi callback đến hạn.
+
+## 2. Cấu hình lịch chạy
+
+Em chọn **delay ban đầu bằng period** cho từng task. Ví dụ, `T1` chạy lần đầu ở 500 ms rồi tiếp tục chạy mỗi 500 ms. Vì mỗi callback chỉ đảo mức một lần, LED cần **hai lần đảo** để trở về trạng thái ban đầu.
+
+| Task | LED và chân GPIO | Delay ban đầu = period | Chu kỳ sáng–tắt đầy đủ |
+|---|---|---:|---:|
+| `T1` | D1 đỏ, PA1 | 500 ms / 50 tick | 1000 ms |
+| `T2` | D2 vàng, PA2 | 1000 ms / 100 tick | 2000 ms |
+| `T3` | D3 hồng, PA3 | 1500 ms / 150 tick | 3000 ms |
+| `T4` | D4 xanh lá, PA4 | 2000 ms / 200 tick | 4000 ms |
+| `T5` | D5 xanh dương, PA5 | 2500 ms / 250 tick | 5000 ms |
+
+Với hai task có delay \(d_1,d_2\) và period \(p_1,p_2\), hai lịch có thể trùng nếu \(\gcd(p_1,p_2)\) chia hết \(d_1-d_2\). Ở chế độ này, \(d_1=p_1\) và \(d_2=p_2\), nên điều kiện đúng cho mọi cặp. Ví dụ, `T1` và `T2` cùng đến hạn lần đầu tại 1000 ms. Scheduler xử lý các task cùng deadline theo `TaskID` tăng dần, nên `T1` chạy trước `T2`.
+
+## 3. Kết quả kiểm thử trên Proteus
+
+Em chạy firmware năm LED và quan sát Virtual Terminal ở **115200 baud, 8N1**. Trong ảnh đầu, tại **2500 ms**, LED đỏ, hồng, xanh lá và xanh dương sáng, còn LED vàng tắt. Trạng thái này khớp lịch đã đăng ký. Đến mốc đó, `T2` đã đảo ở 1000 và 2000 ms nên LED vàng trở về trạng thái tắt, còn `T5` vừa đảo lần đầu nên LED xanh dương sáng.
+
+Các ảnh chụp tiếp theo cho thấy scheduler vẫn duy trì lịch và thứ tự xử lý:
+
+| Timestamp trên terminal | Thứ tự callback quan sát được |
+|---:|---|
+| 1000 ms | `T1 → T2` |
+| 2000 ms | `T1 → T2 → T4` |
+| 2500 ms | `T1 → T5` |
+| 12000 ms | `T1 → T2 → T3 → T4` |
+| 17500 ms | `T1 → T5` |
+| 18000 ms | `T1 → T2 → T3 → T4` |
+
+Tại **12000 ms** và **18000 ms**, bốn callback cùng đến hạn và các dòng log xuất hiện đúng thứ tự `T1 → T2 → T3 → T4`. Các callback chạy tuần tự. Chúng in cùng timestamp vì đều đọc `SCH_Get_Time()` trong cùng một tick.
+
+Để kiểm tra chu kỳ dài nhất, em đối chiếu ba lượt liên tiếp của `T5`:
+
+| Timestamp của `T5` | Trạng thái D5 sau lần đảo |
+|---:|---|
+| 12500 ms | Sáng |
+| 15000 ms | Tắt |
+| 17500 ms | Sáng lại |
+
+Hai lần đảo liên tiếp cách nhau **2500 ms**. Từ lần bật ở 12500 ms đến lần bật lại ở 17500 ms là **5000 ms**, đúng một chu kỳ sáng–tắt đầy đủ. Các khoảng trên được xác nhận bằng **timestamp của scheduler và trạng thái LED trong ảnh Proteus**. Cửa sổ Logic Analyser trong ảnh không có trace dùng để đo độc lập cạnh GPIO.
+
+## TRẠNG THÁI DỰ ÁN
+
+**T10 — Đã chạy và kiểm chứng chế độ năm LED trên Proteus.** Cả năm task xuất hiện trong log. Các deadline trùng được xử lý đúng thứ tự ID. Riêng LED xanh dương có bằng chứng cho một vòng **sáng → tắt → sáng** qua ba mốc **12500, 15000 và 17500 ms**.
+
+**Tiếp theo — T11:** Kiểm thử toàn diện scheduler, gồm xóa ID hợp lệ và ID cũ, pool đầy, callback tự xóa, tick quay vòng và task chạy trễ.
 
