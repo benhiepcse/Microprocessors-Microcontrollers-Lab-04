@@ -24,6 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "scheduler.h"
 
 /* USER CODE END Includes */
 
@@ -56,6 +57,10 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void T5_ToggleRedLed(void)
+{
+    HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
+}
 
 /* USER CODE END 0 */
 
@@ -91,6 +96,25 @@ int main(void)
   MX_TIM2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  SCH_Init();
+
+  uint32_t red_task_id = SCH_Add_Task(T5_ToggleRedLed,
+                                     MS_TO_TICK(500U),
+                                     MS_TO_TICK(500U));
+
+  if (red_task_id == NO_TASK_ID)
+  {
+      Error_Handler();
+  }
+
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+  HAL_NVIC_ClearPendingIRQ(TIM2_IRQn);
+
+  if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK)
+  {
+      Error_Handler();
+  }
 
   /* USER CODE END 2 */
 
@@ -101,6 +125,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+      SCH_Dispatch_Tasks();
   }
   /* USER CODE END 3 */
 }
@@ -142,6 +167,13 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM2)
+    {
+        SCH_Update();
+    }
+}
 
 /* USER CODE END 4 */
 

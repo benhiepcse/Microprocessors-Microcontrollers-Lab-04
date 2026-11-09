@@ -168,24 +168,172 @@ Scheduler dự kiến — SCH_MAX_TASKS = 16. Phần triển khai scheduler thu�
 Kiểm thử — ZIP toàn vẹn. Chưa xác minh build hoặc đo tick trên Proteus.
 Tiếp theo — T2, dựng mạch Proteus theo pinout đã xác minh.
 
-# CẬP NHẬT TRẠNG THÁI - T2
-| Hạng mục | Thao tác bạn đã thực hiện | Bằng chứng đã đối chiếu |
-|---|---|---|
-| **Tạo mạch Proteus** | Tạo schematic `Lab4_CooperativeScheduler_Proteus.pdsprj`, đặt U1 là model `STM32F103C6`. | Ảnh schematic và dòng `Loaded netlist` trong Simulation Log. |
-| **Nối năm LED** | Nối PA1 → đỏ, PA2 → vàng, PA3 → hồng, PA4 → xanh lá, PA5 → xanh dương. Mỗi nhánh có điện trở `220 Ω` nối tiếp, cathode LED về GND chung. | Ảnh mạch cho thấy đúng năm cặp nhãn và năm điện trở R1–R5. |
-| **Nối nguồn, boot và reset** | Nối `VBAT` lên `+3.3 V`, `BOOT0` xuống GND và kéo `NRST` lên `+3.3 V` qua R6 `10 kΩ`. Vẽ net `VDDA` lên `+3.3 V` và `VSSA` xuống GND. | Các nhánh này hiện rõ trên sơ đồ. Ánh xạ chân nguồn số ẩn `VDD/VSS` chưa được đối chiếu trực tiếp qua hộp `Hidden Pins`. |
-| **Nối và cấu hình Virtual Terminal** | Nối PA9 TX → `RXD` bằng nhãn `USART1_TX`. Để PA10, TXD, RTS và CTS hở. Đặt `115200` baud, `8` data bits, parity `NONE`, `1` stop bit, `Send XON/XOFF = No`, cực tính `Normal`. | Ảnh sơ đồ và hộp thuộc tính Virtual Terminal khớp cấu hình USART1 TX-only của firmware. |
-| **Chuẩn bị chân đo** | Đặt nhãn `PULSE` tại PA6 để dành cho phép đo bằng Logic Analyzer ở T7. | Ảnh schematic thấy nhãn `PULSE` ở PA6. |
-| **Giữ cấu hình clock phù hợp firmware** | Firmware dùng HSI nội `8 MHz`, PLL tắt. Trong thuộc tính U1, để `Crystal Frequency = (Default)` và `Use MCO pin = No`. | Mã `SystemClock_Config()` và ảnh `Edit Component` của U1. |
-| **Build firmware nền** | Build project `Lab4_CooperativeScheduler` trong STM32CubeIDE. Thư mục `Debug` có `Lab4_CooperativeScheduler.elf` và `Lab4_CooperativeScheduler.hex`. | Console hiện `Build Finished. 0 errors, 0 warnings.` |
-| **Nạp và chạy mô phỏng** | Chọn `Lab4_CooperativeScheduler\Debug\Lab4_CooperativeScheduler.hex` ở `U1 → Program File`, rồi bấm Run. | U1 hiển thị tên file HEX, Proteus vào `ANIMATING`, Simulation Log xác nhận nạp file và đọc **7.432 byte**. |
+## Báo cáo T2 — Dựng mạch và chạy thử firmware nền trên Proteus
 
-TRẠNG THÁI DỰ ÁN
-T2 — Đã dựng mạch, build 0 errors, 0 warnings, nạp đúng HEX và chạy thử Proteus.
-MCU/clock — STM32F103C6Ux, HSI 8 MHz, Crystal Frequency = (Default).
-TIM2 — PSC 7999, ARR 9, IRQ bật, chu kỳ danh định 10 ms khi start.
-GPIO — PA1–PA5 nối năm LED qua 220 Ω, PA6 PULSE dành cho phép đo.
-UART — USART1 PA9 → RXD, 115200 8N1, TX-only.
-Mã đã có — main, gpio, tim, usart và mã IRQ. Scheduler và DEMO_MODE chưa triển khai.
-Thiết kế — TICK_MS = 10, SCH_MAX_TASKS = 16.
-Kiểm thử — Đã xác minh nạp và chạy firmware nền. Phép thử UART và đo tick thuộc các task sau.
+Ở T2, em đã dựng mạch mô phỏng `Lab4_CooperativeScheduler_Proteus.pdsprj` trong Proteus 8 Professional. Mạch sử dụng model STM32F103C6, năm LED để quan sát các task định kỳ, một Virtual Terminal để nhận dữ liệu UART và một chân đo dành cho việc kiểm tra chu kỳ ngắt TIM2.
+
+### 1. Dựng và nối mạch
+
+Em nối PA1 với LED đỏ, PA2 với LED vàng, PA3 với LED hồng, PA4 với LED xanh lá và PA5 với LED xanh dương. Mỗi chân GPIO đi qua một điện trở **220 Ω** rồi đến anode của LED tương ứng. Cathode của cả năm LED nối về GND chung. Với cách mắc này, LED sáng khi GPIO ở mức cao và tắt khi GPIO ở mức thấp.
+
+Để thiết lập trạng thái khởi động của MCU, em nối `BOOT0` xuống GND, nối `VBAT` lên `+3.3 V` và kéo chân `NRST` lên `+3.3 V` qua điện trở R6 **10 kΩ**. Trên sơ đồ, em đã nối net `VDDA` lên `+3.3 V` và net `VSSA` xuống GND. Ảnh mạch xác nhận các nhánh này, còn ánh xạ chân nguồn số ẩn `VDD/VSS` của model chưa được đối chiếu trực tiếp trong hộp `Hidden Pins`.
+
+### 2. Nối Virtual Terminal và chuẩn bị chân đo
+
+Em nối **PA9**, chân phát của USART1, vào **RXD** của Virtual Terminal bằng nhãn net `USART1_TX`. Firmware dùng chế độ chỉ phát, nên em để PA10 và các chân `TXD`, `RTS`, `CTS` của terminal hở. Em đặt Virtual Terminal ở **115200 baud, 8 bit dữ liệu, không parity, 1 stop bit**, tắt XON/XOFF và giữ cực tính `Normal`.
+
+Em đặt nhãn `PULSE` tại **PA6** để dành cho phép đo tick ở T7. Khi chạy firmware đo, PA6 sẽ đảo mức một lần mỗi ngắt TIM2. Logic Analyzer sẽ đo khoảng cách giữa hai cạnh liên tiếp để kiểm tra tick **10 ms**. Ở T2, PA6 mới được chuẩn bị làm điểm đo.
+
+### 3. Build, nạp và chạy thử
+
+Em build project `Lab4_CooperativeScheduler` trong STM32CubeIDE. Console báo **0 lỗi, 0 cảnh báo** và thư mục `Debug` có cả hai file `.elf` và `.hex`. Trong thuộc tính của U1, em chọn `Debug\Lab4_CooperativeScheduler.hex` tại ô `Program File`. Em giữ `Crystal Frequency` ở `(Default)` và `Use MCO pin` ở `No`. Clock hệ thống **8 MHz** đến từ HSI nội đã được chọn trong firmware.
+
+Sau khi bấm **Run**, Proteus chuyển sang trạng thái `ANIMATING`. Simulation Log xác nhận U1 đã nạp đúng file HEX và đọc **7.432 byte**. Cả bốn dòng hiển thị trong log đều là thông tin. Khi mô phỏng chạy, cả năm LED tắt và Virtual Terminal trống. Kết quả này phù hợp với firmware nền vì GPIO được khởi tạo ở mức thấp, chương trình chưa gửi dữ liệu UART và chưa khởi động TIM2.
+
+**T2 hoàn thành ở phạm vi dựng mạch, build, nạp và chạy thử firmware nền.** Kết quả đã xác nhận đường đi từ bản build CubeIDE đến mô phỏng Proteus. Kiểm thử truyền UART và đo chu kỳ ngắt TIM2 sẽ thực hiện với firmware của các task sau.
+
+**TRẠNG THÁI DỰ ÁN**  
+T2 — Hoàn thành dựng mạch Proteus, build, nạp và chạy firmware nền.  
+Project — `Lab4_CooperativeScheduler`; mạch `Lab4_CooperativeScheduler_Proteus.pdsprj`.  
+MCU/clock — STM32F103C6Ux, HSI 8 MHz, PLL tắt, AHB/APB1/APB2 chia 1; `Crystal Frequency = (Default)`.  
+TIM2 — Clock 8 MHz, PSC 7999, ARR 9, IRQ bật; tick danh định 10 ms khi start.  
+GPIO — PA1 đỏ, PA2 vàng, PA3 hồng, PA4 xanh lá, PA5 xanh dương, mỗi LED qua 220 Ω; PA6 `PULSE` chờ đo.  
+USART1 — PA9 TX → Virtual Terminal RXD, 115200 8N1, TX-only, IRQ tắt.  
+Mã tại mốc T2 — Có `.ioc`, `main`, `gpio`, `tim`, `usart` và mã IRQ; scheduler và `DEMO_MODE` chưa tích hợp.  
+Thiết kế tại mốc T2 — `TICK_MS = 10`, `SCH_MAX_TASKS = 16`.  
+Đã xác minh — Build 0 lỗi, 0 cảnh báo; Proteus đọc 7.432 byte từ HEX và vào `ANIMATING`.  
+Giới hạn xác minh — Chưa đối chiếu trực tiếp mapping nguồn ẩn `VDD/VSS`, chưa thử truyền UART hoặc đo tick.
+
+# CẬP NHẬT TRẠNG THÁI - T3
+
+## Mục tiêu và phương án thiết kế
+
+T3 thiết kế scheduler cho `Lab4_CooperativeScheduler` trước khi viết mã C. Theo §3–4, trang 22 của đề, scheduler được tách thành module riêng và cung cấp bốn hàm `SCH_Update()`, `SCH_Dispatch_Tasks()`, `SCH_Add_Task()` và `SCH_Delete_Task()`. Thiết kế bổ sung `SCH_Init()` để khởi tạo và `SCH_Get_Time()` để cung cấp timestamp cho các bài demo ở §5, trang 23.
+
+Scheduler chia công việc giữa hai ngữ cảnh thực thi. **Ngắt TIM2** gọi `SCH_Update()` để tăng bộ đếm một lần cho mỗi tick. **Vòng lặp chính** gọi `SCH_Dispatch_Tasks()` để lấy task đã đến hạn và chạy callback. Callback chạy đến khi trả về. Nếu A chạy lâu, B có thể bắt đầu trễ dù TIM2 vẫn tiếp tục tăng tick. Việc tách hai phần này giúp `SCH_Update()` có chi phí \(O(1)\), đáp ứng tiêu chí tránh quét danh sách trong ngắt ở §5.
+
+## Cấu trúc dữ liệu và quy ước
+
+| Hạng mục | Thiết kế đã chốt |
+|---|---|
+| Bộ nhớ | Dùng pool tĩnh `SCH_MAX_TASKS = 16`. Mỗi slot lưu con trỏ callback, `TaskID`, deadline tuyệt đối, period, chỉ số slot kế tiếp và trạng thái. |
+| Danh sách chờ | Sắp theo deadline tăng dần. Hai task cùng deadline thì ID nhỏ hơn chạy trước. Mỗi task đang chờ xuất hiện đúng một lần. |
+| Vòng đời slot | `FREE` → `QUEUED` khi đăng ký. Khi đến hạn, dispatcher tháo slot khỏi danh sách và chuyển sang `RUNNING`. Sau callback, task periodic còn hiệu lực quay lại `QUEUED`. One-shot và task đã hủy quay về `FREE`. |
+| Task tự xóa | Nếu callback gọi Delete với ID của chính nó, slot chuyển sang `CANCELLED`. Callback tiếp tục đến lúc trả về. Dispatcher giải phóng slot sau đó. |
+| Định danh | ID bắt đầu từ 1, tăng dần và độc lập với chỉ số slot. Nếu slot được cấp lại, task mới nhận ID mới. `NO_TASK_ID = 0` dành cho lỗi Add. |
+| Đơn vị | Một tick bằng 10 ms. `DELAY` và `PERIOD` nhận số tick. Phép đổi ms sang tick làm tròn lên. Ví dụ 15 ms → 2 tick, 500 ms → 50 tick. |
+| Delay và period | `DELAY = 0` làm task đủ điều kiện chạy ở lượt dispatch kế tiếp. `PERIOD = 0` tạo one-shot. `PERIOD > 0` tạo task định kỳ. |
+| Giữ pha | Deadline kế tiếp bằng **deadline cũ + period**. Nếu main bận tạm thời, các lượt quá hạn được xử lý theo thứ tự deadline. Nếu tải vượt khả năng xử lý kéo dài, các lượt chờ có thể tích tụ. |
+| Đồng bộ | Sau khi timer chạy, ISR là bên ghi `current_tick`. Main chụp tick bằng cách lưu `PRIMASK`, tắt ngắt, đọc tick rồi khôi phục `PRIMASK`. Duyệt danh sách và gọi callback ở ngoài vùng khóa. |
+| Tick quay vòng | Dùng hiệu không dấu để so sánh tick. Điều kiện áp dụng là tick hiện tại và các deadline đang xét nằm trong một cửa sổ nhỏ hơn \(2^{31}\) tick. Giới hạn riêng từng delay và period chưa đủ để bảo đảm điều kiện này nếu giữ lượt quá hạn rất lâu. |
+
+## Luồng xử lý đã thiết kế
+
+| Hàm | Trình tự xử lý | Chi phí |
+|---|---|---|
+| `SCH_Init()` | Đặt tick về 0, ID kế tiếp về 1, xóa đầu danh sách và slot đang chạy, đánh dấu toàn bộ slot trống. Gọi trước khi start TIM2. | \(O(n)\) |
+| `SCH_Update()` | Tăng tick đúng một lần cho mỗi sự kiện update của TIM2. | \(O(1)\) |
+| `SCH_Add_Task()` | Kiểm tra tham số và khả năng cấp ID, tìm slot trống, chụp tick, tính `deadline = now + DELAY`, chèn theo deadline và ID, trả ID. | \(O(n)\) |
+| `SCH_Delete_Task()` | Kiểm tra slot đang chạy. Nếu ID khớp thì đánh dấu hủy. Với task đang chờ, tìm node, nối lại danh sách rồi giải phóng slot. Trả lỗi nếu ID không hợp lệ. | \(O(1)\) với task đang chạy, \(O(n)\) với task đang chờ |
+| `SCH_Dispatch_Tasks()` | Kiểm tra node đầu. Nếu đã đến hạn, tháo node, đánh dấu đang chạy và gọi callback. Sau callback, giải phóng slot hoặc tính deadline mới và chèn lại. Mỗi lần gọi xử lý tối đa một callback. | Kiểm tra đầu hàng \(O(1)\), chèn lại periodic \(O(n)\), chưa tính thời gian callback |
+| `SCH_Get_Time()` | Chụp tick và trả `tick × 10` theo đơn vị ms dưới dạng `uint32_t`. | \(O(1)\) |
+
+## Trace thiết kế
+
+| Ca | Đầu vào | Kết quả kỳ vọng |
+|---|---|---|
+| Cùng deadline | A có ID 1, B có ID 2, cùng hạn tick 50. | A chạy trước, B chạy ở lượt dispatch kế tiếp. |
+| Periodic chạy trễ | A đến hạn tick 50, period 50 tick, main chỉ rảnh ở tick 53. | A bắt đầu ở tick 53. Hạn kế tiếp vẫn là tick 100. |
+| Nhiều lượt quá hạn | Tại tick 125, A có hạn 50 và period 50, B là one-shot có hạn 80. Giả sử các callback trả về trước tick 150. | Thứ tự xử lý là A hạn 50 → B hạn 80 → A hạn 100. Hạn tiếp theo của A là 150. |
+| Callback tự xóa | A đang chạy với ID 7 và gọi `SCH_Delete_Task(7)`. | Delete trả `SCH_OK`. A chạy nốt callback rồi giải phóng slot, không có lượt định kỳ kế tiếp. |
+| Tick quay vòng | Đăng ký tại `0xFFFFFFFE` với delay 3 tick. | Deadline bằng `1`. Task chưa đến hạn ở `0xFFFFFFFF` và `0`, đến hạn ở `1`. |
+
+**Kết quả T3:** Hoàn thành thiết kế chi tiết, gồm kiến trúc ISR/main, cấu trúc slot, bất biến danh sách, quy ước API, giả mã sáu hàm và trace ca biên. Các trace là kết quả suy ra từ thiết kế.
+
+# CẬP NHẬT TRẠNG THÁI - T4
+
+## Tạo module scheduler trong STM32CubeIDE
+
+Trong project `Lab4_CooperativeScheduler`, tạo `Core/Inc/scheduler.h` và `Core/Src/scheduler.c`. Header chứa API công khai, hằng số và hàm quy đổi ms sang tick. File nguồn chứa pool, danh sách chờ và toàn bộ logic scheduler. `scheduler.c` dùng `main.h` để truy cập các hàm CMSIS thao tác với `PRIMASK`.
+
+| Thành phần | Nội dung đã triển khai |
+|---|---|
+| `scheduler.h` | Khai báo đủ sáu API, `TICK_MS = 10`, `SCH_MAX_TASKS = 16`, `NO_TASK_ID = 0`, `SCH_OK = 0`, `SCH_ERR_TASK_NOT_FOUND = 1` và `SCH_MAX_INTERVAL_TICKS = 0x7FFFFFFF`. |
+| `MS_TO_TICK()` | Chia số ms cho 10 rồi cộng 1 nếu có dư. Cách tính tránh phải cộng 9 vào đầu vào trước khi chia, nên xử lý được cả giá trị lớn kiểu `uint32_t`. |
+| `task_pool` và `insert_task()` | Dùng mảng 16 slot và liên kết bằng chỉ số. Khi chèn, xét deadline theo hiệu không dấu. Nếu hai deadline bằng nhau, xét ID. Cùng một hàm chèn được dùng cho Add và cho periodic sau callback. |
+| `read_tick()` | Lưu `PRIMASK`, tắt ngắt, đọc `current_tick` rồi khôi phục đúng `PRIMASK` ban đầu. |
+| `SCH_Init()` và `SCH_Update()` | Init đưa scheduler về trạng thái rỗng. Update chỉ thực hiện `++current_tick`. |
+| `SCH_Add_Task()` | Từ chối callback `NULL`, delay hoặc period vượt giới hạn, pool đầy hoặc đã hết ID. Khi thành công, cấp ID, tính deadline, lưu task và chèn vào danh sách. |
+| `SCH_Delete_Task()` | Xóa ngay task đang chờ và nối lại danh sách. Với task đang chạy, đánh dấu `CANCELLED`. ID 0, ID cũ và ID không tồn tại trả `SCH_ERR_TASK_NOT_FOUND`. |
+| `SCH_Dispatch_Tasks()` | Chụp tick, kiểm tra đầu hàng, tháo task đến hạn và gọi callback. Sau đó giải phóng one-shot hoặc task đã hủy. Task periodic còn hiệu lực được chèn lại với deadline cũ cộng period. |
+| `SCH_Get_Time()` | Trả timestamp ms dạng `uint32_t`. Kết quả ms quay vòng theo miền của giá trị trả về. Scheduler vẫn dùng tick nội bộ để xét deadline. |
+
+## Build và phạm vi kiểm tra
+
+1. Lưu `scheduler.h` và `scheduler.c` trong STM32CubeIDE.
+2. Chọn `Lab4_CooperativeScheduler` rồi chạy **Project → Build Project**.
+3. Kiểm tra cây project có hai file đúng thư mục và Console báo **`Build Finished. 0 errors, 0 warnings.`**
+4. Kiểm tra thư mục `Debug` hiển thị `Lab4_CooperativeScheduler.elf` và `Lab4_CooperativeScheduler.hex`.
+
+Ảnh T4 xác nhận vị trí hai file, sáu khai báo trong Outline và kết quả tổng kết build. Ảnh chưa hiển thị dòng biên dịch `scheduler.c` hoặc `scheduler.o`. Ở T4, `main.c` chưa gọi scheduler, nên kết quả build mới xác nhận project build được. Đường chạy từ TIM2 qua scheduler đến GPIO được thử ở T5.
+
+**Kết quả T4:** Hoàn thành mã module scheduler và build project thành công. Các ca callback rỗng, pool đầy, ID cũ, xóa đầu/giữa/cuối, cùng deadline, tự xóa và quay vòng vẫn chờ kiểm thử riêng.
+
+# CẬP NHẬT TRẠNG THÁI - T5
+
+## Tích hợp scheduler vào firmware
+
+T5 tích hợp module scheduler vào `Core/Src/main.c` thông qua năm khối `USER CODE`. Task thử được chọn là **đảo LED đỏ D1 trên PA1**, với delay ban đầu và period đều bằng 500 ms. Hai giá trị đều được đổi thành 50 tick. Task này kiểm tra đường đi từ ngắt TIM2 đến callback điều khiển GPIO.
+
+| Vị trí trong `main.c` | Thao tác đã thực hiện | Mục đích |
+|---|---|---|
+| `USER CODE BEGIN Includes` | Thêm `#include "scheduler.h"`. | Cho `main.c` sử dụng API scheduler và `MS_TO_TICK()`. |
+| `USER CODE BEGIN 0` | Tạo `T5_ToggleRedLed()`, gọi `HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin)`. | Đảo PA1 mỗi lần scheduler chạy callback. Macro chân và port lấy từ `main.h`. |
+| `USER CODE BEGIN 2` | Sau khi CubeMX khởi tạo GPIO, TIM2 và USART1, gọi `SCH_Init()` rồi đăng ký task đỏ với delay và period đều là `MS_TO_TICK(500U)`. Nếu Add trả `NO_TASK_ID`, gọi `Error_Handler()`. | Scheduler và danh sách task sẵn sàng trước khi timer bắt đầu đếm. Task đầu tiên nhận ID 1 khi đăng ký thành công. |
+| `USER CODE BEGIN 2` | Đặt counter TIM2 về 0, xóa `TIM_FLAG_UPDATE`, xóa pending `TIM2_IRQn`, sau đó gọi `HAL_TIM_Base_Start_IT(&htim2)`. Nếu HAL trả trạng thái khác `HAL_OK`, gọi `Error_Handler()`. | Khởi động TIM2 ở chế độ ngắt và dọn trạng thái update còn treo từ quá trình khởi tạo. |
+| `USER CODE BEGIN 3` | Gọi `SCH_Dispatch_Tasks()` bên trong `while (1)`. | Main liên tục kiểm tra task đến hạn và chạy callback. |
+| `USER CODE BEGIN 4` | Định nghĩa `HAL_TIM_PeriodElapsedCallback()`. Chỉ gọi `SCH_Update()` khi `htim->Instance == TIM2`. | Mỗi lần HAL xử lý sự kiện update của TIM2, scheduler tăng một tick. |
+
+`stm32f1xx_it.c` đã có `TIM2_IRQHandler()` gọi `HAL_TIM_IRQHandler(&htim2)`. Sau tích hợp, đường thực thi gồm hai phần:
+
+- **Đường ngắt** — TIM2 update → `TIM2_IRQHandler()` → `HAL_TIM_IRQHandler(&htim2)` → `HAL_TIM_PeriodElapsedCallback()` → `SCH_Update()`.
+- **Đường main** — `while (1)` → `SCH_Dispatch_Tasks()` → `T5_ToggleRedLed()` → đảo PA1 khi task đến hạn.
+
+## Cơ sở thời gian và kết quả kỳ vọng
+
+Với clock TIM2 danh định 8 MHz, `PSC = 7999` và `ARR = 9`, chu kỳ update theo cấu hình là:
+
+\[
+T_{\mathrm{update}}
+= \frac{(7999+1)(9+1)}{8\,000\,000}
+= 0{,}010\ \mathrm{s}
+= 10\ \mathrm{ms}.
+\]
+
+LED đỏ được GPIO khởi tạo ở mức Low. Lần đầu scheduler gọi callback ở tick 50, sau đó mỗi 50 tick lại đảo LED một lần.
+
+| Thời gian danh định kể từ lúc start TIM2 | Tick | Trạng thái LED đỏ sau dispatch |
+|---:|---:|---|
+| 0 ms | 0 | Tắt |
+| 500 ms | 50 | Bật |
+| 1.000 ms | 100 | Tắt |
+| 1.500 ms | 150 | Bật |
+| 2.000 ms | 200 | Tắt |
+
+**500 ms là khoảng giữa hai lần đảo LED.** Một chu kỳ sáng–tắt đầy đủ dài khoảng 1.000 ms. Bốn LED còn lại dự kiến tắt vì ở T5 chỉ đăng ký task đỏ.
+
+## Kiểm tra trên Proteus
+
+1. Build firmware sau khi tích hợp và chọn `Debug\Lab4_CooperativeScheduler.hex` ở **U1 → Program File**.
+2. Chạy mô phỏng, kiểm tra trạng thái **`ANIMATING`** và quan sát D1 qua nhiều lần bật/tắt.
+3. Dùng nhịp LED đỏ làm tiêu chí thử tích hợp. Ảnh chụp tại một thời điểm chỉ xác nhận trạng thái mô phỏng và trạng thái LED ở thời điểm đó. Bảng mốc trên là giá trị kỳ vọng.
+4. Virtual Terminal để trống là hành vi dự kiến vì callback thử chỉ gọi hàm đảo GPIO. Cửa sổ nổi của Virtual Terminal có thể được khôi phục qua **Debug → Reset Debug Popup Windows**. Việc gửi và đọc log UART được kiểm tra ở T6.
+
+**Kết quả T5:** Đã tích hợp scheduler với `main.c`, nối ngắt TIM2 và chạy thử trong Proteus. Người thực hiện xác nhận **T5 OK**. Bằng chứng hiện có gồm ảnh Proteus ở trạng thái `ANIMATING` và xác nhận chạy thử. Phép đo khoảng cách giữa các tick bằng PA6 và Logic Analyzer thuộc T7.
+
+## TRẠNG THÁI DỰ ÁN
+
+- **T3 hoàn thành** — Đã chốt thiết kế scheduler, giả mã sáu API, thứ tự chạy, cách giữ pha và các ca biên.
+- **T4 hoàn thành** — Đã thêm `scheduler.h` và `scheduler.c`. Console ghi nhận build **0 errors, 0 warnings**.
+- **T5 hoàn thành theo xác nhận chạy thử** — Đã tích hợp timer, scheduler và callback thử LED đỏ. Tick **10 ms** hiện là giá trị danh định theo cấu hình.
+- **Tiếp theo — `LÀM T6`** — Tạo `tasks.h` và `tasks.c`, gửi timestamp bằng UART polling qua USART1 ở 115200 baud, 8N1, rồi kiểm tra log trên Virtual Terminal.
