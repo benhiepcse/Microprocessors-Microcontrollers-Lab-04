@@ -25,7 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "scheduler.h"
-
+#include "tasks.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,11 +57,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void T5_ToggleRedLed(void)
-{
-    HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
-}
-
 /* USER CODE END 0 */
 
 /**
@@ -98,7 +93,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   SCH_Init();
 
-  uint32_t red_task_id = SCH_Add_Task(T5_ToggleRedLed,
+  uint32_t red_task_id = SCH_Add_Task(Tasks_RedLed,
                                      MS_TO_TICK(500U),
                                      MS_TO_TICK(500U));
 
