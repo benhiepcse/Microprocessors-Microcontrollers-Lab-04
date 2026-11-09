@@ -122,7 +122,7 @@ CODE HIỆN TẠI: [dán file hoặc USER CODE liên quan nếu có]
 TÌNH TRẠNG: [chưa làm / đang làm / lỗi + nguyên văn]
 YÊU CẦU THÊM: [nếu có]
 
-# CẬP NHẬT TRẠNG THÁI
+# CẬP NHẬT TRẠNG THÁI - T0
 TRẠNG THÁI DỰ ÁN
 T0 đã chốt thiết kế | Đã soạn prompt chuyển giao | Chưa cấu hình project mới.
 STM32F103C6Ux | HSI 8 MHz | APB1 /1 | TIM2 clock 8 MHz.
@@ -142,3 +142,50 @@ Thiết kế dự kiến — TICK_MS = 10, SCH_MAX_TASKS = 16.
 Đã xác minh ở mẫu — Có scheduler.h/.c và .elf/.hex. USART1 của mẫu dùng 9600 baud.
 Project của bạn — Chưa có bằng chứng về cấu hình, build hoặc kết quả mô phỏng.
 Còn mở — Cách hiểu giới hạn tần số ngắt ở §5 chưa được giảng viên xác nhận.
+
+# CẬP NHẬT TRẠNG THÁI - T1
+| Hạng mục | Thao tác đã hoàn thành | Bằng chứng kiểm tra |
+|---|---|---|
+| **Tạo project** | Chọn **STM32F103C6Ux, UFQFPN48** và đặt tên `Lab4_CooperativeScheduler`. Chọn **STM32CubeIDE** làm toolchain. | `.ioc` ghi đúng MCU, package và toolchain. ZIP có `.project`, `.cproject`, `.settings`, `Core`, `Drivers` và linker script `STM32F103C6UX_FLASH.ld`. |
+| **Debug và HAL timebase** | Bật **Serial Wire** trên PA13/PA14 và giữ **SysTick** làm timebase của HAL. | `.ioc` ghi `PA13 = SWDIO`, `PA14 = SWCLK` và `SysTick`. |
+| **Clock hệ thống** | Chọn **HSI 8 MHz** làm nguồn SYSCLK. Đặt AHB, APB1 và APB2 chia `/1`, cho clock TIM2 **8 MHz**. | Ảnh clock và `.ioc` cho thấy các tần số 8 MHz. `SystemClock_Config()` trong `main.c` chọn HSI, các bộ chia `/1` và cấu hình PLL là `RCC_PLL_NONE`. |
+| **TIM2 và ngắt** | Chọn **Internal Clock**, đếm lên, đặt **PSC = 7999**, **ARR = 9**, bật **TIM2 global interrupt**. | `.ioc` và `tim.c` khớp các giá trị. `tim.c` bật `TIM2_IRQn`. `TIM2_IRQHandler()` trong `stm32f1xx_it.c` gọi `HAL_TIM_IRQHandler(&htim2)`. Chu kỳ update danh định là **10 ms**. |
+| **GPIO theo mạch mẫu** | Gán PA1 `RED`, PA2 `YELLOW`, PA3 `PINK`, PA4 `GREEN`, PA5 `BLUE`, PA6 `PULSE`. Cả sáu chân là **output push-pull**, khởi tạo **Low**, **no pull**, tốc độ **Low**. | `main.h` có macro cho đủ sáu chân. `gpio.c` đặt cả nhóm về `GPIO_PIN_RESET` và khởi tạo đúng chế độ. |
+| **USART1** | Chọn **Asynchronous**, **115200 baud, 8N1**, không flow control, **Transmit Only**, tắt USART1 IRQ để dùng polling. | Ảnh NVIC cho thấy ô USART1 IRQ đã bỏ tick. `usart.c` xác nhận `UART_MODE_TX`, `115200`, 8 bit, 1 stop bit và không parity. PA10 vẫn được sinh dưới dạng chân RX/input. Khi nối Proteus, chỉ cần **PA9 TX → RXD** và để PA10 hở. |
+| **Sinh mã nguồn** | Bật sinh `.c/.h` riêng cho ngoại vi, bật **Keep User Code** và chạy **Generate Code**. | `.ioc` ghi `CoupleFile=true` và `KeepUserCode=true`. ZIP có `tim.c/.h`, `usart.c/.h`, `gpio.c/.h`. `main.c` gọi `MX_GPIO_Init()`, `MX_TIM2_Init()` và `MX_USART1_UART_Init()`. |
+| **Bàn giao GitHub** | Commit và push project nền, `.gitignore` và `prompt.md`. | Ảnh GitHub hiển thị cả ba mục trên nhánh `main`. ZIP tải về có cùng cấu trúc ở thư mục gốc. |
+
+TRẠNG THÁI DỰ ÁN
+T0 — Hoàn thành theo xác nhận của bạn. T1 — Hoàn thành, đã đối chiếu ảnh, .ioc và mã C trong ZIP.
+Project — Lab4_CooperativeScheduler, STM32F103C6Ux UFQFPN48, toolchain STM32CubeIDE.
+Clock/SYS — HSI 8 MHz, AHB/APB1/APB2 /1, Serial Wire PA13/PA14, HAL timebase SysTick.
+TIM2 — Internal Clock 8 MHz, Up, PSC 7999, ARR 9, IRQ bật. TICK_MS dự kiến 10 theo cấu hình.
+GPIO — PA1 RED, PA2 YELLOW, PA3 PINK, PA4 GREEN, PA5 BLUE, PA6 PULSE. Push-pull, mặc định Low.
+UART — USART1 PA9 TX, 115200 8N1, Transmit Only, không flow control, IRQ tắt. PA10 để hở khi nối mạch.
+Mã sinh đã kiểm tra — .ioc, main.c/.h, gpio.c/.h, tim.c/.h, usart.c/.h, stm32f1xx_it.c và TIM2_IRQHandler().
+GitHub — Nhánh main, commit 74a2ac1, có project nền, .gitignore và prompt.md.
+Scheduler dự kiến — SCH_MAX_TASKS = 16. Phần triển khai scheduler thuộc các task sau.
+Kiểm thử — ZIP toàn vẹn. Chưa xác minh build hoặc đo tick trên Proteus.
+Tiếp theo — T2, dựng mạch Proteus theo pinout đã xác minh.
+
+# CẬP NHẬT TRẠNG THÁI - T2
+| Hạng mục | Thao tác bạn đã thực hiện | Bằng chứng đã đối chiếu |
+|---|---|---|
+| **Tạo mạch Proteus** | Tạo schematic `Lab4_CooperativeScheduler_Proteus.pdsprj`, đặt U1 là model `STM32F103C6`. | Ảnh schematic và dòng `Loaded netlist` trong Simulation Log. |
+| **Nối năm LED** | Nối PA1 → đỏ, PA2 → vàng, PA3 → hồng, PA4 → xanh lá, PA5 → xanh dương. Mỗi nhánh có điện trở `220 Ω` nối tiếp, cathode LED về GND chung. | Ảnh mạch cho thấy đúng năm cặp nhãn và năm điện trở R1–R5. |
+| **Nối nguồn, boot và reset** | Nối `VBAT` lên `+3.3 V`, `BOOT0` xuống GND và kéo `NRST` lên `+3.3 V` qua R6 `10 kΩ`. Vẽ net `VDDA` lên `+3.3 V` và `VSSA` xuống GND. | Các nhánh này hiện rõ trên sơ đồ. Ánh xạ chân nguồn số ẩn `VDD/VSS` chưa được đối chiếu trực tiếp qua hộp `Hidden Pins`. |
+| **Nối và cấu hình Virtual Terminal** | Nối PA9 TX → `RXD` bằng nhãn `USART1_TX`. Để PA10, TXD, RTS và CTS hở. Đặt `115200` baud, `8` data bits, parity `NONE`, `1` stop bit, `Send XON/XOFF = No`, cực tính `Normal`. | Ảnh sơ đồ và hộp thuộc tính Virtual Terminal khớp cấu hình USART1 TX-only của firmware. |
+| **Chuẩn bị chân đo** | Đặt nhãn `PULSE` tại PA6 để dành cho phép đo bằng Logic Analyzer ở T7. | Ảnh schematic thấy nhãn `PULSE` ở PA6. |
+| **Giữ cấu hình clock phù hợp firmware** | Firmware dùng HSI nội `8 MHz`, PLL tắt. Trong thuộc tính U1, để `Crystal Frequency = (Default)` và `Use MCO pin = No`. | Mã `SystemClock_Config()` và ảnh `Edit Component` của U1. |
+| **Build firmware nền** | Build project `Lab4_CooperativeScheduler` trong STM32CubeIDE. Thư mục `Debug` có `Lab4_CooperativeScheduler.elf` và `Lab4_CooperativeScheduler.hex`. | Console hiện `Build Finished. 0 errors, 0 warnings.` |
+| **Nạp và chạy mô phỏng** | Chọn `Lab4_CooperativeScheduler\Debug\Lab4_CooperativeScheduler.hex` ở `U1 → Program File`, rồi bấm Run. | U1 hiển thị tên file HEX, Proteus vào `ANIMATING`, Simulation Log xác nhận nạp file và đọc **7.432 byte**. |
+
+TRẠNG THÁI DỰ ÁN
+T2 — Đã dựng mạch, build 0 errors, 0 warnings, nạp đúng HEX và chạy thử Proteus.
+MCU/clock — STM32F103C6Ux, HSI 8 MHz, Crystal Frequency = (Default).
+TIM2 — PSC 7999, ARR 9, IRQ bật, chu kỳ danh định 10 ms khi start.
+GPIO — PA1–PA5 nối năm LED qua 220 Ω, PA6 PULSE dành cho phép đo.
+UART — USART1 PA9 → RXD, 115200 8N1, TX-only.
+Mã đã có — main, gpio, tim, usart và mã IRQ. Scheduler và DEMO_MODE chưa triển khai.
+Thiết kế — TICK_MS = 10, SCH_MAX_TASKS = 16.
+Kiểm thử — Đã xác minh nạp và chạy firmware nền. Phép thử UART và đo tick thuộc các task sau.
