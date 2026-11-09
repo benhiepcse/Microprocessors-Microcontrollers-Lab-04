@@ -35,7 +35,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define DEMO_MODE_A 1
+#define DEMO_MODE DEMO_MODE_A
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,6 +58,14 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#if DEMO_MODE == DEMO_MODE_A
+static void DemoA_LogTick(void)
+{
+    Tasks_LogTimestamp("A");
+}
+#else
+#error "Unsupported DEMO_MODE"
+#endif
 /* USER CODE END 0 */
 
 /**
@@ -91,26 +100,25 @@ int main(void)
   MX_TIM2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  SCH_Init();
+    SCH_Init();
 
-  uint32_t red_task_id = SCH_Add_Task(Tasks_RedLed,
-                                     MS_TO_TICK(500U),
-                                     MS_TO_TICK(500U));
+  #if DEMO_MODE == DEMO_MODE_A
+    uint32_t demo_task_id = SCH_Add_Task(DemoA_LogTick, 1U, 1U);
+  #endif
 
-  if (red_task_id == NO_TASK_ID)
-  {
-      Error_Handler();
-  }
+    if (demo_task_id == NO_TASK_ID)
+    {
+        Error_Handler();
+    }
 
-  __HAL_TIM_SET_COUNTER(&htim2, 0U);
-  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-  HAL_NVIC_ClearPendingIRQ(TIM2_IRQn);
+    __HAL_TIM_SET_COUNTER(&htim2, 0U);
+    __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+    HAL_NVIC_ClearPendingIRQ(TIM2_IRQn);
 
-  if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK)
-  {
-      Error_Handler();
-  }
-
+    if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK)
+    {
+        Error_Handler();
+    }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -166,10 +174,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM2)
     {
+#if DEMO_MODE == DEMO_MODE_A
+        HAL_GPIO_TogglePin(PULSE_GPIO_Port, PULSE_Pin);
+#endif
         SCH_Update();
     }
 }
-
 /* USER CODE END 4 */
 
 /**

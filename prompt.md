@@ -337,3 +337,114 @@ LED đỏ được GPIO khởi tạo ở mức Low. Lần đầu scheduler gọi
 - **T4 hoàn thành** — Đã thêm `scheduler.h` và `scheduler.c`. Console ghi nhận build **0 errors, 0 warnings**.
 - **T5 hoàn thành theo xác nhận chạy thử** — Đã tích hợp timer, scheduler và callback thử LED đỏ. Tick **10 ms** hiện là giá trị danh định theo cấu hình.
 - **Tiếp theo — `LÀM T6`** — Tạo `tasks.h` và `tasks.c`, gửi timestamp bằng UART polling qua USART1 ở 115200 baud, 8N1, rồi kiểm tra log trên Virtual Terminal.
+
+# CẬP NHẬT TRẠNG THÁI - T6
+
+## 1. Mục tiêu
+
+Ở T5, em đã dùng scheduler để đảo trạng thái LED đỏ D1 trên chân PA1 mỗi 500 ms. Sang T6, em bổ sung chức năng **gửi thời điểm thực thi của task qua USART1**. Mỗi lần task T1 chạy, LED đỏ đảo trạng thái và Virtual Terminal trong Proteus hiển thị một dòng dạng `[t=500 ms] T1`. Nhờ đó, em có thể theo dõi các lần callback thực thi qua log thay vì chỉ quan sát LED.
+
+## 2. Thao tác đã thực hiện trong STM32CubeIDE
+
+Em tạo hai file `Core/Inc/tasks.h` và `Core/Src/tasks.c`. File `tasks.h` khai báo callback `Tasks_RedLed()` và hàm ghi log `Tasks_LogTimestamp()`. File `tasks.c` triển khai hai hàm này. Việc tách phần điều khiển LED và UART thành module riêng giúp các demo sau dùng lại hàm ghi timestamp.
+
+Trong `Core/Src/main.c`, em thêm `#include "tasks.h"` vào khối `USER CODE Includes`, xóa callback thử `T5_ToggleRedLed()` và thay bằng `Tasks_RedLed` trong lời gọi `SCH_Add_Task()`. Delay ban đầu và period đều giữ ở **500 ms**, tương ứng **50 tick**. Sau khi khởi tạo GPIO, TIM2 và USART1, chương trình khởi tạo scheduler, đăng ký task rồi khởi động TIM2 ở chế độ ngắt.
+
+Khi TIM2 phát sinh ngắt, `SCH_Update()` tăng bộ đếm tick. Vòng `while (1)` gọi `SCH_Dispatch_Tasks()` để kiểm tra deadline. Khi T1 đến hạn, dispatcher gọi `Tasks_RedLed()`. Callback đảo mức PA1 rồi gọi `Tasks_LogTimestamp("T1")`.
+
+## 3. Cách tạo và gửi timestamp
+
+Trong `Tasks_LogTimestamp()`, chương trình gọi `SCH_Get_Time()` để **chụp thời gian trước khi định dạng và gửi**. Giá trị trả về là timestamp tính theo ms của scheduler tại thời điểm lấy mẫu trong callback. Ví dụ, nếu bộ đếm đang ở tick 50 thì timestamp là \(50 \times 10 = 500\) ms. Sau đó, `snprintf()` định dạng dòng `[t=500 ms] T1` và thêm `\r\n` để xuống dòng trên Virtual Terminal.
+
+Chương trình gửi chuỗi bằng `HAL_UART_Transmit()` ở chế độ polling với **timeout 5 ms**. Lệnh gửi chạy trong callback do vòng lặp chính gọi, sau khi `SCH_Get_Time()` đã khôi phục trạng thái ngắt. Với cách gửi này, USART1 IRQ có thể giữ tắt. Nếu định dạng lỗi hoặc chuỗi vượt bộ đệm 40 byte, chương trình tăng bộ đếm lỗi định dạng và bỏ dòng đó. Sau mỗi lần gọi HAL, chương trình lưu trạng thái trả về và tăng bộ đếm lỗi UART nếu trạng thái khác `HAL_OK`. Các biến này có thể được xem trong debugger.
+
+## 4. Cấu hình và kết quả chạy trong Proteus
+
+Trong thuộc tính U1, em chọn firmware `Lab4_CooperativeScheduler\Debug\Lab4_CooperativeScheduler.hex`. Chân **PA9 TX của STM32** nối đến **RXD của Virtual Terminal** qua nhãn `USART1_TX`. Virtual Terminal được đặt ở **115200 baud, 8 data bits, parity NONE, 1 stop bit**, với XON/XOFF tắt và cực tính Normal. Các thông số này khớp cấu hình USART1 TX-only trong `usart.c`.
+
+Khi chạy mô phỏng, Virtual Terminal hiển thị bảy dòng sau:
+
+```text
+[t=500 ms] T1
+[t=1000 ms] T1
+[t=1500 ms] T1
+[t=2000 ms] T1
+[t=2500 ms] T1
+[t=3000 ms] T1
+[t=3500 ms] T1
+```
+
+Các dòng đọc rõ và hai timestamp liên tiếp cách nhau **500 ms**. Ở thời điểm chụp ảnh sau dòng 3500 ms, D1 đang sáng và bốn LED còn lại tắt. Trạng thái D1 phù hợp với lần đảo thứ bảy, vì LED bắt đầu ở trạng thái tắt. Kết quả xác nhận scheduler đã gọi task T1 theo lịch và USART1 đã truyền được log đến Virtual Terminal.
+
+## 5. Thời gian truyền và giới hạn của timestamp
+
+Với UART 8N1, mỗi byte cần **10 bit** trên đường truyền. Dòng `[t=500 ms] T1` dài 15 byte khi tính cả `\r\n`, nên thời gian truyền lý thuyết là:
+
+\[
+T_{\text{UART}} = \frac{15 \times 10}{115200} \approx 1{,}30\ \text{ms}.
+\]
+
+Khi nhiều callback đến hạn cùng tick, callback sau phải chờ callback trước trả về, kể cả thời gian định dạng và gửi UART. Sự chờ này gây **jitter**, tức độ lệch giữa deadline và thời điểm callback thực sự chạy. Hai callback có thể in cùng timestamp nếu cả hai lấy mẫu trong cùng một tick 10 ms. Nếu callback sau phải chờ qua một tick mới, timestamp của nó sẽ lớn hơn.
+
+Timestamp hiển thị là kết quả `tick × 10` lưu trong `uint32_t`, nên bắt đầu quay vòng sau khoảng **49,7 ngày**. Bộ đếm tick nội bộ tăng một đơn vị mỗi 10 ms và quay vòng sau khoảng **497 ngày**. Scheduler dùng bộ đếm tick nội bộ để so sánh deadline.
+
+## TRẠNG THÁI DỰ ÁN
+
+**T6 hoàn thành.** Đã tạo `tasks.h` và `tasks.c`, tích hợp callback T1 vào `main.c` và kiểm tra UART polling trên Proteus. Bằng chứng chạy thử là bảy dòng timestamp từ **500 đến 3500 ms** trên Virtual Terminal.
+
+**Tiếp theo — T7.** Chạy demo callback mỗi 10 ms và dùng **PA6 `PULSE` cùng Logic Analyzer** để đo khoảng cách giữa hai ngắt TIM2 liên tiếp. Log T6 xác nhận khoảng cách **500 ms theo bộ đếm scheduler**. Phép đo PA6 ở T7 sẽ kiểm tra trực tiếp tick **10 ms** theo thời gian mô phỏng.
+
+# CẬP NHẬT TRẠNG THÁI - T7
+
+## 1. Mục tiêu
+
+Ở T6, em đã kiểm tra USART1 bằng task T1, với mỗi dòng log cách nhau 500 ms. Sang T7, em chạy **Demo A** để kiểm tra scheduler có gọi callback mỗi tick và in thời gian hiện tại do `SCH_Get_Time()` trả về hay không. Với cấu hình TIM2 của project, một tick danh định tương ứng **10 ms**.
+
+## 2. Thay đổi trong firmware
+
+Trong `Core/Src/main.c`, em chọn `DEMO_MODE_A` qua `DEMO_MODE`. Em tạo callback `DemoA_LogTick()` và dùng lại `Tasks_LogTimestamp("A")` từ T6 để ghi timestamp qua USART1. Khi khởi tạo scheduler, em đăng ký callback với **delay = 1 tick** và **period = 1 tick**. Task được đăng ký trước khi TIM2 bắt đầu đếm, nên deadline đầu tiên là tick 1 và các deadline tiếp theo lần lượt là tick 2, 3, 4…
+
+Mỗi lần TIM2 phát sinh ngắt, `HAL_TIM_PeriodElapsedCallback()` đảo mức chân **PA6 `PULSE`** và gọi `SCH_Update()` để tăng bộ đếm. Trong vòng lặp chính, `SCH_Dispatch_Tasks()` gọi `DemoA_LogTick()` khi task đến hạn. Callback đọc `SCH_Get_Time()` trước khi định dạng và gửi log. Như vậy, timestamp ghi lại **giá trị bộ đếm tại lúc callback thực thi**.
+
+## 3. Chu kỳ TIM2 theo cấu hình
+
+TIM2 dùng clock danh định **8 MHz**, `PSC = 7999` và `ARR = 9`. Bộ chia prescaler chia clock cho \(7999+1=8000\). Sau đó timer đếm từ 0 đến 9, tức 10 nhịp sau bộ chia, để tạo một sự kiện update. Chu kỳ danh định là:
+
+\[
+T_{\mathrm{update}}
+= \frac{(7999+1)(9+1)}{8\,000\,000}
+= 0{,}010\ \mathrm{s}
+= 10\ \mathrm{ms}.
+\]
+
+## 4. Kết quả quan sát trong Proteus
+
+Em chạy firmware Demo A trên Proteus và quan sát Virtual Terminal với cấu hình **115200 baud, 8N1**. Ảnh chạy thử ghi nhận đoạn log sau:
+
+```text
+[t=1970 ms] A
+[t=1980 ms] A
+[t=1990 ms] A
+[t=2000 ms] A
+[t=2010 ms] A
+[t=2020 ms] A
+[t=2030 ms] A
+[t=2040 ms] A
+[t=2050 ms] A
+[t=2060 ms] A
+```
+
+Trong đoạn quan sát, **10 dòng liên tiếp tăng đúng 10 ms mỗi dòng**, không có mốc bị lặp hoặc bị nhảy. Kết quả xác nhận callback Demo A đã chạy theo nhịp của bộ đếm scheduler trong đoạn này và USART1 đã gửi được log với định dạng yêu cầu.
+
+Ở tốc độ 115200 baud, mỗi byte UART 8N1 cần 10 bit trên đường truyền. Một dòng như `[t=1970 ms] A` dài **15 byte** tính cả ký tự xuống dòng `\r\n`, nên thời gian truyền lý thuyết là \(15 \times 10 / 115200 \approx 1{,}30\) ms. Con số này thấp hơn khoảng 10 ms giữa hai lần gọi. Thời gian thực thi callback còn gồm thời gian đọc tick, định dạng chuỗi và gọi HAL.
+
+## 5. Phạm vi xác minh
+
+Em chọn **không đưa phép đo Logic Analyser vào kết quả T7**. Chu kỳ **10 ms** được tính từ cấu hình TIM2, còn khoảng cách **10 ms giữa các timestamp** được quan sát trên Virtual Terminal. Vì timestamp được tính từ chính bộ đếm scheduler, **khoảng thời gian giữa hai ngắt liên tiếp theo thời gian mô phỏng vẫn chưa được đo độc lập**.
+
+## TRẠNG THÁI DỰ ÁN
+
+**T7 — Đã hoàn thành cấu hình Demo A và xác nhận log mỗi 10 ms theo bộ đếm scheduler.** Bằng chứng là ảnh Virtual Terminal hiển thị các mốc từ **1970 đến 2060 ms**. Tiêu chí đo tick độc lập trong checklist ghi **chưa xác minh**.
+
+**Tiếp theo — T8:** Chạy đồng thời hai task có period **300 ms** và **500 ms**, rồi kiểm tra thứ tự callback tại mốc trùng đầu tiên **1500 ms**.
+
