@@ -1,0 +1,9 @@
+../Core/Src/scheduler.c:33:17:read_tick	24	static,ignoring_inline_asm
+../Core/Src/scheduler.c:44:13:release_slot	40	static
+../Core/Src/scheduler.c:52:13:insert_task	32	static
+../Core/Src/scheduler.c:82:6:SCH_Init	16	static
+../Core/Src/scheduler.c:95:6:SCH_Update	4	static
+../Core/Src/scheduler.c:100:10:SCH_Add_Task	32	static
+../Core/Src/scheduler.c:129:9:SCH_Delete_Task	32	static
+../Core/Src/scheduler.c:167:6:SCH_Dispatch_Tasks	24	static
+../Core/Src/scheduler.c:202:10:SCH_Get_Time	8	static

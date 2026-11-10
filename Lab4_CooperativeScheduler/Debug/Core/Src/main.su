@@ -1,0 +1,9 @@
+../Core/Inc/scheduler.h:14:24:MS_TO_TICK	16	static
+../Core/Src/main.c:103:13:Led_Yellow	8	static
+../Core/Src/main.c:109:13:Led_Pink	8	static
+../Core/Src/main.c:115:13:Led_Green	8	static
+../Core/Src/main.c:121:13:Led_Blue	8	static
+../Core/Src/main.c:136:5:main	16	static
+../Core/Src/main.c:263:6:SystemClock_Config	72	static
+../Core/Src/main.c:296:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:312:6:Error_Handler	4	static,ignoring_inline_asm

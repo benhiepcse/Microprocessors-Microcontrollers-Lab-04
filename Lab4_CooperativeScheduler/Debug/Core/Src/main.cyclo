@@ -1,0 +1,9 @@
+../Core/Inc/scheduler.h:14:24:MS_TO_TICK	1
+../Core/Src/main.c:103:13:Led_Yellow	1
+../Core/Src/main.c:109:13:Led_Pink	1
+../Core/Src/main.c:115:13:Led_Green	1
+../Core/Src/main.c:121:13:Led_Blue	1
+../Core/Src/main.c:136:5:main	7
+../Core/Src/main.c:263:6:SystemClock_Config	3
+../Core/Src/main.c:296:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:312:6:Error_Handler	1

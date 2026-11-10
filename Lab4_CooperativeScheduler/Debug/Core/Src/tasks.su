@@ -1,0 +1,2 @@
+../Core/Src/tasks.c:15:6:Tasks_LogTimestamp	80	static
+../Core/Src/tasks.c:42:6:Tasks_RedLed	8	static

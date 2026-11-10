@@ -1,0 +1,9 @@
+../Core/Src/scheduler.c:33:17:read_tick	1
+../Core/Src/scheduler.c:44:13:release_slot	1
+../Core/Src/scheduler.c:52:13:insert_task	5
+../Core/Src/scheduler.c:82:6:SCH_Init	2
+../Core/Src/scheduler.c:95:6:SCH_Update	1
+../Core/Src/scheduler.c:100:10:SCH_Add_Task	7
+../Core/Src/scheduler.c:129:9:SCH_Delete_Task	7
+../Core/Src/scheduler.c:167:6:SCH_Dispatch_Tasks	5
+../Core/Src/scheduler.c:202:10:SCH_Get_Time	1
