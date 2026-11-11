@@ -244,6 +244,7 @@ int main(void)
         Error_Handler();
     }
   /* USER CODE END 2 */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -297,9 +298,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM2)
     {
-#if DEMO_MODE == DEMO_MODE_A
-        HAL_GPIO_TogglePin(PULSE_GPIO_Port, PULSE_Pin);
-#endif
         SCH_Update();
     }
 }

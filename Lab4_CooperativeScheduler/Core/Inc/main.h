@@ -67,8 +67,6 @@ void Error_Handler(void);
 #define GREEN_GPIO_Port GPIOA
 #define BLUE_Pin GPIO_PIN_5
 #define BLUE_GPIO_Port GPIOA
-#define PULSE_Pin GPIO_PIN_6
-#define PULSE_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

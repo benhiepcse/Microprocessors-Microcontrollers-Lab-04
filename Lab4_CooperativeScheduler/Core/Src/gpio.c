@@ -49,12 +49,12 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, RED_Pin|YELLOW_Pin|PINK_Pin|GREEN_Pin
-                          |BLUE_Pin|PULSE_Pin, GPIO_PIN_RESET);
+                          |BLUE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : RED_Pin YELLOW_Pin PINK_Pin GREEN_Pin
-                           BLUE_Pin PULSE_Pin */
+                           BLUE_Pin */
   GPIO_InitStruct.Pin = RED_Pin|YELLOW_Pin|PINK_Pin|GREEN_Pin
-                          |BLUE_Pin|PULSE_Pin;
+                          |BLUE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
